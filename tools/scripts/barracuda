@@ -1,0 +1,156 @@
+#!/bin/bash
+
+# This is the rc start-script for the barracuda deamon. It could be used to
+# automatically start the userspace deamon of the barracuda driver.
+#
+# call ...
+#
+# /etc/init.d/barracuda start
+# /etc/init.d/barracuda stop
+# /etc/init.d/barracuda restart
+
+#DIR="/opt/baracuda"
+DIR="`pwd`"
+
+# SOFT, CUDA, FPGA
+#IMPL="MULTI"
+IMPL="SMP"
+#IMPL="SOFT"
+#IMPL="CUDA"
+
+# NL, IOCTL, PFS
+#CON="NL"
+#CON="IOCTL"
+CON="PFS"
+
+#****************************************************************
+#*
+#* Barracuda is a experimental microdriver extension to the 
+#* linux-kernel that is able to outsource common functions to
+#* the userspace. It was intensionally designed to accelerate
+#* CPU-intensive Tasks on a GPU.
+#*
+#* Copyright (C) 2009 Dominic Eschweiler
+#*
+#* This program is free software; you can redistribute it and/or 
+#* modify it under the terms of the GNU General Public License as 
+#* published by the Free Software Foundation; either only GPLv2 - 
+#* version 2 of the License.
+#*
+#* This program is distributed in the hope that it will be useful, 
+#* but WITHOUT ANY WARRANTY; without even the implied warranty of 
+#* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the 
+#* GNU General Public License for more details.
+#*
+#* You should have received a copy of the GNU General Public 
+#* License along with this program; 
+#* if not, see <http://www.gnu.org/licenses/>.
+#*
+#*****************************************************************
+
+#---------------------------------------------------------------------------------
+
+start()
+{
+if [ -e "/dev/barracuda" ]
+then
+	rm -rf /dev/barracuda
+fi  
+
+NUM=`cat /proc/devices | grep barracuda | awk '{print $1}'`
+mknod /dev/barracuda c $NUM 0
+
+$DIR/baracuda_deamon -m $IMPL -c $CON
+}
+
+#---------------------------------------------------------------------------------
+
+stop()
+{
+if [ -e "/dev/barracuda" ]
+then
+        rm -rf /dev/barracuda
+fi
+
+$DIR/baracuda_deamon -k
+}
+
+#---------------------------------------------------------------------------------
+
+restart()
+{
+stop
+start
+}
+
+#---------------------------------------------------------------------------------
+
+try_restart()
+{
+COUNT=`ps -A | grep baracuda_deamon | wc -l`
+if [ $COUNT == 0 ]
+then
+	echo "There is no running barracuda process"
+	exit 7
+fi
+
+stop
+
+COUNT=`ps -A | grep baracuda_deamon | wc -l`
+if [ $COUNT != 0 ]
+then
+        echo "Process could not be stopped"
+        exit 4
+fi
+
+start
+}
+
+#---------------------------------------------------------------------------------
+
+force_reload()
+{
+restart
+}
+
+#---------------------------------------------------------------------------------
+
+status()
+{
+COUNT=`ps -A | grep baracuda_deamon | wc -l`
+if [ $COUNT == 0 ]
+then
+	echo "[stoped]"
+	exit 3
+fi
+
+echo "[running]"
+exit 0
+}
+
+#---------------------------------------------------------------------------------
+
+#if [ $USERNAME != "root" ]
+#then
+#	echo "You are not root!!! (user = $USERNAME)"
+#	exit 4
+#fi
+
+case "$1" in
+        "start"   	) start
+			  exit 0
+			  ;;
+        "stop"    	) stop
+			  exit 3
+			  ;;
+        "restart" 	) restart
+			  exit 0
+			  ;;
+	"try-restart"	) try_restart;;
+	"reload"	) exit 3;;
+	"force-reload"	) force_reload;;
+	"status"	) status;;
+        *         	) echo "Unknown command. please try [start] [stop] [restart] [try-restart] [force-reload] [status]"
+			  exit 2
+			  ;;
+esac
